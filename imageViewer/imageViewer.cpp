@@ -6,12 +6,10 @@
 #include <atlbase.h>
 #include "config.h"
 
-std::list<std::string> readFiles(std::string & imageDirectoryAddres) {
+std::vector<std::string> readFiles(std::string & imageDirectoryAddres) {
 	std::wstring imageDirectoryAddresInWstring(imageDirectoryAddres.begin(), imageDirectoryAddres.end());
-	std::list<std::string> nameImages;
-	//char searchPath[200];
+	std::vector<std::string> nameImages;
 	std::wstring searchPath = imageDirectoryAddresInWstring + _T("\\*.*");
-	//sprintf(searchPath, "%s/*.*", imageDirectoryAddres.c_str());
 	WIN32_FIND_DATA fd;
 	HANDLE hFind = ::FindFirstFile(searchPath.c_str(), &fd);
 	if (hFind != INVALID_HANDLE_VALUE) {
@@ -28,105 +26,153 @@ std::list<std::string> readFiles(std::string & imageDirectoryAddres) {
 }
 
 
-void eventProcessing(Config & conf, std::list<std::string> & nameImage) {
+void redrawingImage(Config & conf) {
+	conf.window.clear(sf::Color(255, 255, 255));
+	if (!conf.moveImg) {
+		conf.imgPositionX = (int)((conf.window.getSize().x / 2) - (conf.imgSprite.getTextureRect().width * conf.imgSprite.getScale().x / 2));
+		conf.imgPositionY = (int)((conf.window.getSize().y / 2) - (conf.imgSprite.getTextureRect().height * conf.imgSprite.getScale().y / 2));
+	} else {
+		if ((sf::Mouse::getPosition(conf.window).x - conf.deltaXMouseImg) > (int)(conf.window.getSize().x / 2)) {
+			conf.imgPositionX = (int)(conf.window.getSize().x / 2);
+		} else if ((sf::Mouse::getPosition(conf.window).x - conf.deltaXMouseImg + conf.imgSprite.getTextureRect().width * conf.imgSprite.getScale().x) < (int)(conf.window.getSize().x / 2)) {
+			conf.imgPositionX = (int)(conf.window.getSize().x / 2 - conf.imgSprite.getTextureRect().width * conf.imgSprite.getScale().x);
+		} else {
+			conf.imgPositionX = sf::Mouse::getPosition(conf.window).x - conf.deltaXMouseImg;
+		}
+		if ((sf::Mouse::getPosition(conf.window).y - conf.deltaYMouseImg) > (int)(conf.window.getSize().y / 2)) {
+			conf.imgPositionY = (int)(conf.window.getSize().y / 2);
+		} else if ((sf::Mouse::getPosition(conf.window).y - conf.deltaYMouseImg + conf.imgSprite.getTextureRect().height * conf.imgSprite.getScale().y) < (int)(conf.window.getSize().y / 2)) {
+			conf.imgPositionY = (int)(conf.window.getSize().y / 2 - conf.imgSprite.getTextureRect().height  * conf.imgSprite.getScale().y);
+		} else {
+			conf.imgPositionY = sf::Mouse::getPosition(conf.window).y - conf.deltaYMouseImg;
+		}
+
+	}
+	conf.imgSprite.setPosition((float)conf.imgPositionX, (float)conf.imgPositionY);
+	conf.isNeedRedrawImg = false;
+	conf.window.draw(conf.imgSprite);
+	conf.window.draw(conf.leftMove);
+	conf.window.draw(conf.rightMove);
+	conf.window.draw(conf.plus);
+	conf.window.draw(conf.minus);
+	conf.window.display();
+}
+
+
+void drawNewImage(Config & conf, std::string & imageDirectoryAddresInString) {
+	if (conf.img.loadFromFile(imageDirectoryAddresInString + "\\" + *conf.itImg)) {
+		conf.window.setTitle(imageDirectoryAddresInString + "\\" + *conf.itImg);
+		conf.imgTexture.loadFromImage(conf.img);
+		conf.imgSprite.setTexture(conf.imgTexture, 1);
+		conf.isNeedNewImg = false;
+	} else {
+		conf.isNeedNewImg = false;
+		conf.isNeedRedrawImg = false;
+		conf.window.setTitle("File can't load.");
+	}
+}
+
+
+void drawImage(Config & conf, std::string & imageDirectoryAddresInString) {
+	if (conf.isNeedNewImg) {
+		drawNewImage(conf, imageDirectoryAddresInString);
+	}
+	if (conf.isNeedRedrawImg) {
+		redrawingImage(conf);
+	}
+}
+
+
+bool isSpritesIntersectedWithMous(sf::Sprite & sprite, Config & conf) {
+	int posMousX = sf::Mouse::getPosition(conf.window).x;
+	int posMousY = sf::Mouse::getPosition(conf.window).y;
+	if ((((posMousX > sprite.getPosition().x) && (posMousX < sprite.getPosition().x + abs(sprite.getTextureRect().width)))
+		&& ((posMousY > sprite.getPosition().y) && (posMousY < sprite.getPosition().y + abs(sprite.getTextureRect().height))))) {
+		return true;
+	}
+	return false;
+}
+
+
+void previousImage(Config & conf) {
+	conf.itImg--;
+	conf.isNeedNewImg = true;
+	conf.isNeedRedrawImg = true;
+}
+
+
+void nextImage(Config & conf) {
+	conf.itImg++;
+	conf.isNeedNewImg = true;
+	conf.isNeedRedrawImg = true;
+}
+
+
+void zoomUp(Config & conf) {
+	conf.minus.setColor(sf::Color::White);
+	if (conf.size < 5 && conf.size >= 1) {
+		conf.size = conf.size + 0.5f;
+		if (conf.size == 5) {
+			conf.plus.setColor(sf::Color::Transparent);
+		}
+	}
+	if (conf.size < 1) {
+		conf.size = conf.size + 0.1f;
+	}
+	conf.imgSprite.setScale(conf.size, conf.size);
+	conf.isNeedRedrawImg = true;
+}
+
+
+void zoomDown(Config & conf) {
+	conf.plus.setColor(sf::Color::White);
+	if (conf.size >(0.2) && conf.size <= 1) {
+		conf.size = conf.size - 0.1f;
+		if (conf.size < (0.2)) {
+			conf.minus.setColor(sf::Color::Transparent);
+		}
+	}
+	if (conf.size > 1) {
+		conf.size = conf.size - 0.5f;
+	}
+	conf.imgSprite.setScale(conf.size, conf.size);
+	conf.isNeedRedrawImg = true;
+}
+
+
+void eventProcessing(Config & conf, std::vector<std::string> & nameImage) {
 	sf::Event event;
 	while (conf.window.pollEvent(event)) {
-		if (event.type == sf::Event::Closed ||
-			(event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape))
+		if (event.type == sf::Event::Closed || (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape))
 			conf.window.close();
-		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Left && conf.itImg != nameImage.begin()) {
-			conf.itImg--;
-			conf.isNeedNewImg = true;
-			conf.isNeedRedrawImg = true;
-		}
-		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Right && conf.itImg != --nameImage.end()) {
-			conf.itImg++;
-			conf.isNeedNewImg = true;
-			conf.isNeedRedrawImg = true;
-		}
 		if (event.type == sf::Event::Resized || event.type == sf::Event::GainedFocus) {
 			conf.isNeedRedrawImg = true;
 			conf.window.setView(sf::View(sf::FloatRect(0.0f, 0.0f, (float)conf.window.getSize().x, (float)conf.window.getSize().y)));
 		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Up)) {
-			conf.minus.setColor(sf::Color::White);
-			if (conf.size < 5 && conf.size >= 1) {
-				conf.size = conf.size + (float)(0.5);
-				if (conf.size == 5) {
-					conf.plus.setColor(sf::Color::Transparent);
-				}
-			}
-			if (conf.size < 1) {
-				conf.size = conf.size + (float)(0.1);
-			}
-			conf.imgSprite.setScale(conf.size, conf.size);
-			conf.isNeedRedrawImg = true;
-		}
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Down)) {
-			conf.plus.setColor(sf::Color::White);
-			if (conf.size >(0.2) && conf.size <= 1) {
-				conf.size = conf.size - (float)(0.1);
-				if (conf.size < (0.2)) {
-					conf.minus.setColor(sf::Color::Transparent);
-				}
-			}
-			if (conf.size > 1) {
-				conf.size = conf.size - (float)(0.5);
-			}
-			conf.imgSprite.setScale(conf.size, conf.size);
-			conf.isNeedRedrawImg = true;
-		}
+
+		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Left && conf.itImg != nameImage.begin())
+			previousImage(conf);
+		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Right && conf.itImg != --nameImage.end())
+			nextImage(conf);
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Up))
+			zoomUp(conf);
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Down))
+			zoomDown(conf);
+
 		if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left) {
-			sf::RectangleShape areaImg;
-			areaImg.setTextureRect(sf::IntRect((int)(conf.imgSprite.getPosition().x), (int)(conf.imgSprite.getPosition().y), conf.imgSprite.getTextureRect().width * (int)(conf.size), conf.imgSprite.getTextureRect().height * (int)(conf.size)));
-			if (areaImg.getTextureRect().contains(sf::Mouse::getPosition(conf.window))) {
+			if (isSpritesIntersectedWithMous(conf.imgSprite, conf)) {
 				conf.isMousePressedInImg = true;
 				conf.deltaXMouseImg = sf::Mouse::getPosition(conf.window).x - (int)(conf.imgSprite.getPosition().x);
 				conf.deltaYMouseImg = sf::Mouse::getPosition(conf.window).y - (int)(conf.imgSprite.getPosition().y);
 			}
-			areaImg.setTextureRect(sf::IntRect((int)(conf.leftMove.getPosition().x), (int)(conf.leftMove.getPosition().y), conf.leftMove.getTextureRect().width, conf.leftMove.getTextureRect().height));
-			if (areaImg.getTextureRect().contains(sf::Mouse::getPosition(conf.window)) && conf.itImg != nameImage.begin()) {
-				conf.itImg--;
-				conf.isNeedNewImg = true;
-				conf.isNeedRedrawImg = true;
-			}
-			areaImg.setTextureRect(sf::IntRect((int)(conf.rightMove.getPosition().x), (int)(conf.rightMove.getPosition().y), conf.rightMove.getTextureRect().width, conf.rightMove.getTextureRect().height));
-			if (areaImg.getTextureRect().contains(sf::Mouse::getPosition(conf.window)) && conf.itImg != --nameImage.end()) {
-				conf.itImg++;
-				conf.isNeedNewImg = true;
-				conf.isNeedRedrawImg = true;
-			}
-			areaImg.setTextureRect(sf::IntRect((int)(conf.plus.getPosition().x), (int)(conf.plus.getPosition().y), conf.plus.getTextureRect().width, conf.plus.getTextureRect().height));
-			if (areaImg.getTextureRect().contains(sf::Mouse::getPosition(conf.window))) {
-				conf.minus.setColor(sf::Color::White);
-				if (conf.size < 5 && conf.size >= 1) {
-					conf.size = conf.size + (float)(0.5);
-					if (conf.size == 5) {
-						conf.plus.setColor(sf::Color::Transparent);
-					}
-				}
-				if (conf.size < 1) {
-					conf.size = conf.size + (float)(0.1);
-				}
-				conf.imgSprite.setScale(conf.size, conf.size);
-				conf.isNeedRedrawImg = true;
-			}
-			areaImg.setTextureRect(sf::IntRect((int)(conf.minus.getPosition().x), (int)(conf.minus.getPosition().y), conf.minus.getTextureRect().width, conf.minus.getTextureRect().height));
-			if (areaImg.getTextureRect().contains(sf::Mouse::getPosition(conf.window))) {
-				conf.plus.setColor(sf::Color::White);
-				if (conf.size >(0.2) && conf.size <= 1) {
-					conf.size = conf.size - (float)(0.1);
-					std::cout << conf.size;
-					if (conf.size < (0.2)) {
-						conf.minus.setColor(sf::Color::Transparent);
-					}
-				}
-				if (conf.size > 1) {
-					conf.size = conf.size - (float)(0.5);
-				}
-				conf.imgSprite.setScale(conf.size, conf.size);
-				conf.isNeedRedrawImg = true;
-			}
+			if (isSpritesIntersectedWithMous(conf.leftMove, conf) && conf.itImg != nameImage.begin()) 
+				previousImage(conf);
+			if (isSpritesIntersectedWithMous(conf.rightMove, conf) && conf.itImg != --nameImage.end()) 
+				nextImage(conf);
+			if (isSpritesIntersectedWithMous(conf.plus, conf)) 
+				zoomUp(conf);
+			if (isSpritesIntersectedWithMous(conf.minus, conf))
+				zoomDown(conf);
 		}
 		if (conf.isMousePressedInImg) {
 			if (event.type == sf::Event::MouseMoved) {
@@ -139,6 +185,9 @@ void eventProcessing(Config & conf, std::list<std::string> & nameImage) {
 			conf.isMousePressedInImg = false;
 			conf.mouseMove = false;
 			conf.isNeedRedrawImg = false;
+			conf.moveImg = false;
+			conf.deltaXMouseImg = 0;
+			conf.deltaYMouseImg = 0;
 		}
 	}
 }
@@ -169,60 +218,7 @@ void createArrowAndPM(Config & conf) {
 }
 
 
-void drawImage(Config & conf, std::string & imageDirectoryAddresInString) {
-	if (conf.isNeedNewImg) {
-		if (conf.img.loadFromFile(imageDirectoryAddresInString + "\\" + *conf.itImg)) {
-			conf.window.setTitle(imageDirectoryAddresInString + "\\" + *conf.itImg);
-			conf.imgTexture.loadFromImage(conf.img);
-			conf.imgSprite.setTexture(conf.imgTexture, 1);
-			conf.isNeedNewImg = false;
-		} 
-		else {
-			conf.isNeedNewImg = false;
-			conf.window.setTitle("File can't load.");
-		}
-	}
-	if (conf.isNeedRedrawImg) {
-		conf.window.clear(sf::Color(255, 255, 255));
-		if (!conf.moveImg) {
-			conf.imgPositionX = (int)((conf.window.getSize().x / 2) - (conf.imgSprite.getTextureRect().width * conf.imgSprite.getScale().x / 2));
-			conf.imgPositionY = (int)((conf.window.getSize().y / 2) - (conf.imgSprite.getTextureRect().height * conf.imgSprite.getScale().y / 2));
-		} 
-		else {
-			if ((sf::Mouse::getPosition(conf.window).x - conf.deltaXMouseImg) > (int)(conf.window.getSize().x / 2)) {
-				conf.imgPositionX = (int)(conf.window.getSize().x / 2);
-			}
-			else if ((sf::Mouse::getPosition(conf.window).x - conf.deltaXMouseImg + conf.imgSprite.getTextureRect().width * conf.imgSprite.getScale().x) < (int)(conf.window.getSize().x / 2)) {
-				conf.imgPositionX = (int)(conf.window.getSize().x / 2 - conf.imgSprite.getTextureRect().width * conf.imgSprite.getScale().x);
-			}
-			else {
-				conf.imgPositionX = sf::Mouse::getPosition(conf.window).x - conf.deltaXMouseImg;
-			}
-			if ((sf::Mouse::getPosition(conf.window).y - conf.deltaYMouseImg) > (int)(conf.window.getSize().y / 2)) {
-				conf.imgPositionY = (int)(conf.window.getSize().y / 2);
-			} 
-			else if ((sf::Mouse::getPosition(conf.window).y - conf.deltaYMouseImg + conf.imgSprite.getTextureRect().height * conf.imgSprite.getScale().y) < (int)(conf.window.getSize().y / 2)) {
-				conf.imgPositionY = (int)(conf.window.getSize().y / 2 - conf.imgSprite.getTextureRect().height  * conf.imgSprite.getScale().y);
-			}
-			else {
-				conf.imgPositionY = sf::Mouse::getPosition(conf.window).y - conf.deltaYMouseImg;
-			}
-
-		}
-		conf.imgSprite.setPosition((float)conf.imgPositionX, (float)conf.imgPositionY);
-		conf.isNeedRedrawImg = false;
-		conf.window.draw(conf.imgSprite);
-		conf.window.draw(conf.leftMove);
-		conf.window.draw(conf.rightMove);
-		conf.window.draw(conf.plus);
-		conf.window.draw(conf.minus);
-		conf.window.display();
-
-	}
-}
-
-
-void runViewer(Config & conf, std::list<std::string> & nameImage, std::string & imageDirectoryAddresInString) {
+void runViewer(Config & conf, std::vector<std::string> & nameImage, std::string & imageDirectoryAddresInString) {
 	conf.window.create(sf::VideoMode(800, 600), "Viewer");	
 	conf.itImg = nameImage.begin();
 	createArrowAndPM(conf);
@@ -248,7 +244,6 @@ void runViewer(Config & conf, std::list<std::string> & nameImage, std::string & 
 	}
 	if (!conf.isHaveImg) {
 		std::cout << std::endl << "No images." << std::endl;
-		system("pause");
 	}
 }
 
@@ -257,11 +252,10 @@ int main()
 {
 	Config conf;
 	std::string imageDirectoryAddres;
-	//imageDirectoryAddres = "D:\\imageViewer";
-	std::cin >> imageDirectoryAddres;
-	std::list<std::string> nameImagesInList = readFiles(imageDirectoryAddres);
-	runViewer(conf, nameImagesInList, imageDirectoryAddres);
-	
+	imageDirectoryAddres = "D:\\imageViewer";
+	//std::cin >> imageDirectoryAddres;
+	std::vector<std::string> nameImagesInList = readFiles(imageDirectoryAddres);
+	runViewer(conf, nameImagesInList, imageDirectoryAddres);	
     return 0;
+	std::vector<std::string> v;
 }
-

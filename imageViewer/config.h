@@ -21,14 +21,14 @@ struct Config {
 	sf::Image img;
 	sf::Texture imgTexture;
 	sf::Sprite imgSprite;
-	std::list<std::string>::iterator itImg;
+	std::vector<std::string>::iterator itImg;
 	bool isNeedNewImg = true;
 	bool isNeedRedrawImg = true;
 	bool isMousePressedInImg = false;
 	bool mouseMove = false;
 	bool moveImg = false;
-	int deltaXMouseImg;
-	int deltaYMouseImg;
+	int deltaXMouseImg = 0;
+	int deltaYMouseImg = 0;
 	int imgPositionX;
 	bool isHaveImg = true;
 	int imgPositionY;
