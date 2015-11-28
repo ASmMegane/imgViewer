@@ -83,7 +83,7 @@ void drawImage(Config & conf, std::string & imageDirectoryAddresInString) {
 }
 
 
-bool isSpritesIntersectedWithMous(sf::Sprite & sprite, Config & conf) {
+bool isSpritesIntersectedWithMous( const sf::Sprite & sprite, const Config & conf) {
 	int posMousX = sf::Mouse::getPosition(conf.window).x;
 	int posMousY = sf::Mouse::getPosition(conf.window).y;
 	if ((((posMousX > sprite.getPosition().x) && (posMousX < sprite.getPosition().x + abs(sprite.getTextureRect().width)))
@@ -139,8 +139,38 @@ void zoomDown(Config & conf) {
 	conf.isNeedRedrawImg = true;
 }
 
+void unpressingTheImage(Config & conf) {
+	conf.isMousePressedInImg = false;
+	conf.mouseMove = false;
+	conf.isNeedRedrawImg = false;
+	conf.moveImg = false;
+	conf.deltaXMouseImg = 0;
+	conf.deltaYMouseImg = 0;
+}
 
-void eventProcessing(Config & conf, std::vector<std::string> & nameImage) {
+
+void pressingTheImage(Config & conf) {
+	if (isSpritesIntersectedWithMous(conf.imgSprite, conf)) {
+		conf.isMousePressedInImg = true;
+		conf.deltaXMouseImg = sf::Mouse::getPosition(conf.window).x - (int)(conf.imgSprite.getPosition().x);
+		conf.deltaYMouseImg = sf::Mouse::getPosition(conf.window).y - (int)(conf.imgSprite.getPosition().y);
+	}
+}
+
+
+void pressingTheControlSprite(Config & conf, const std::vector<std::string> & nameImage) {
+	if (isSpritesIntersectedWithMous(conf.leftMove, conf) && conf.itImg != nameImage.begin())
+		previousImage(conf);
+	if (isSpritesIntersectedWithMous(conf.rightMove, conf) && conf.itImg != --nameImage.end())
+		nextImage(conf);
+	if (isSpritesIntersectedWithMous(conf.plus, conf))
+		zoomUp(conf);
+	if (isSpritesIntersectedWithMous(conf.minus, conf))
+		zoomDown(conf);
+}
+
+
+void eventProcessing(Config & conf, const std::vector<std::string> & nameImage) {
 	sf::Event event;
 	while (conf.window.pollEvent(event)) {
 		if (event.type == sf::Event::Closed || (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape))
@@ -149,7 +179,7 @@ void eventProcessing(Config & conf, std::vector<std::string> & nameImage) {
 			conf.isNeedRedrawImg = true;
 			conf.window.setView(sf::View(sf::FloatRect(0.0f, 0.0f, (float)conf.window.getSize().x, (float)conf.window.getSize().y)));
 		}
-
+//--------------------нажатие на управляющие клавиши--------------------------------------
 		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Left && conf.itImg != nameImage.begin())
 			previousImage(conf);
 		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Right && conf.itImg != --nameImage.end())
@@ -158,37 +188,19 @@ void eventProcessing(Config & conf, std::vector<std::string> & nameImage) {
 			zoomUp(conf);
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) && (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Down))
 			zoomDown(conf);
-
+//---------------------------нажате на изображение и управляющие спрайты------------------
 		if (event.type == sf::Event::MouseButtonPressed && event.key.code == sf::Mouse::Left) {
-			if (isSpritesIntersectedWithMous(conf.imgSprite, conf)) {
-				conf.isMousePressedInImg = true;
-				conf.deltaXMouseImg = sf::Mouse::getPosition(conf.window).x - (int)(conf.imgSprite.getPosition().x);
-				conf.deltaYMouseImg = sf::Mouse::getPosition(conf.window).y - (int)(conf.imgSprite.getPosition().y);
-			}
-			if (isSpritesIntersectedWithMous(conf.leftMove, conf) && conf.itImg != nameImage.begin()) 
-				previousImage(conf);
-			if (isSpritesIntersectedWithMous(conf.rightMove, conf) && conf.itImg != --nameImage.end()) 
-				nextImage(conf);
-			if (isSpritesIntersectedWithMous(conf.plus, conf)) 
-				zoomUp(conf);
-			if (isSpritesIntersectedWithMous(conf.minus, conf))
-				zoomDown(conf);
+			pressingTheImage(conf);
+			pressingTheControlSprite(conf, nameImage);
 		}
-		if (conf.isMousePressedInImg) {
-			if (event.type == sf::Event::MouseMoved) {
-				conf.mouseMove = true;
-				conf.moveImg = true;
-				conf.isNeedRedrawImg = true;
-			}
+//---------------------------движение изображения по экрану-------------------------------
+		if (conf.isMousePressedInImg && (event.type == sf::Event::MouseMoved)) {			
+			conf.mouseMove = true;
+			conf.moveImg = true;
+			conf.isNeedRedrawImg = true;
 		}
-		if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left) {
-			conf.isMousePressedInImg = false;
-			conf.mouseMove = false;
-			conf.isNeedRedrawImg = false;
-			conf.moveImg = false;
-			conf.deltaXMouseImg = 0;
-			conf.deltaYMouseImg = 0;
-		}
+		if (event.type == sf::Event::MouseButtonReleased && event.key.code == sf::Mouse::Left)
+			unpressingTheImage(conf);
 	}
 }
 
@@ -252,10 +264,9 @@ int main()
 {
 	Config conf;
 	std::string imageDirectoryAddres;
-	imageDirectoryAddres = "D:\\imageViewer";
-	//std::cin >> imageDirectoryAddres;
+	//imageDirectoryAddres = "D:\\imageViewer";
+	std::cin >> imageDirectoryAddres;
 	std::vector<std::string> nameImagesInList = readFiles(imageDirectoryAddres);
 	runViewer(conf, nameImagesInList, imageDirectoryAddres);	
     return 0;
-	std::vector<std::string> v;
 }
